@@ -108,3 +108,69 @@ class MultiClassifier:
             f1_scores.append(f1_score(y_val, y_pred_bayesian, average='weighted'))
 
         return {'accuracy': np.mean(acc_scores), 'f1_score': np.mean(f1_scores)}
+
+    def fit_final_models(self, draws=500, tune=500):
+        """
+        Fits both standard and Bayesian logistic regression models on the entire dataset.
+        """
+        # Standard Logistic Regression
+        self.final_logistic_model = LogisticRegression(multi_class='multinomial', solver='lbfgs', max_iter=1000)
+        self.final_logistic_model.fit(self.X, self.y_multiclass)
+
+        # Bayesian Logistic Regression
+        n_features = self.X.shape[1]
+        n_classes = self.n_classes
+        
+        with pm.Model() as self.final_bayesian_model:
+            alpha = pm.Normal("alpha", mu=0, sigma=1, shape=n_classes)
+            beta = pm.Laplace("beta", mu=0, b=1, shape=(n_features, n_classes))
+            
+            mu = alpha + pm.math.dot(self.X, beta)
+            p = pm.math.softmax(mu, axis=1)
+            
+            y_obs = pm.Categorical("y_obs", p=p, observed=self.y_multiclass)
+            
+            self.final_trace = pm.sample(draws, tune=tune, cores=1, progressbar=False, return_inferencedata=False)
+
+    def predict_proba(self, sample_data):
+        """
+        Predicts probabilities for sample data using both models.
+        
+        Args:
+            sample_data: numpy array or pandas DataFrame of shape (n_samples, n_features)
+            
+        Returns:
+            dict containing 'logistic_proba' and 'bayesian_proba'
+        """
+        if hasattr(sample_data, 'values'):
+            sample_data = sample_data.values
+            
+        if not hasattr(self, 'final_logistic_model') or not hasattr(self, 'final_trace'):
+            raise ValueError("Models have not been fitted. Call fit_final_models() first.")
+
+        # Standard Logistic Regression Prediction
+        logistic_proba = self.final_logistic_model.predict_proba(sample_data)
+
+        # Bayesian Logistic Regression Prediction
+        alpha_samples = self.final_trace['alpha']
+        beta_samples = self.final_trace['beta']
+        
+        probs_list = []
+        for i in range(len(alpha_samples)):
+            a = alpha_samples[i]
+            b = beta_samples[i]
+            logit = a + np.dot(sample_data, b)
+            
+            # Softmax
+            e_x = np.exp(logit - np.max(logit, axis=1, keepdims=True))
+            p_val = e_x / e_x.sum(axis=1, keepdims=True)
+            
+            probs_list.append(p_val)
+        
+        bayesian_proba = np.mean(probs_list, axis=0)
+        
+        return {
+            'logistic_proba': logistic_proba,
+            'bayesian_proba': bayesian_proba,
+            'classes': self.class_labels
+        }
