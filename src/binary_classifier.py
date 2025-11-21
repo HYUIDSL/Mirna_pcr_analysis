@@ -6,7 +6,8 @@ from sklearn.model_selection import KFold
 import pymc as pm
 
 class BinaryClassifier:
-    def __init__(self, X, y, n_splits=10, random_state=42):
+    def __init__(self,args, X, y, n_splits=10, random_state=42):
+        self.args = args
         self.X = X
         self.y_original = y
         self.n_splits = n_splits
@@ -21,7 +22,7 @@ class BinaryClassifier:
         weights[y_str[y_str == 'MCI'].index] = mci_weight
         return y_binary, weights
 
-    def run_logistic_regression(self):
+    def cv_logistic_regression(self):
         acc_scores, recall_scores, f1_scores = [], [], []
 
         for train_index, val_index in self.kf.split(self.X):
@@ -39,7 +40,7 @@ class BinaryClassifier:
 
         return {'accuracy': np.mean(acc_scores), 'recall': np.mean(recall_scores), 'f1_score': np.mean(f1_scores)}
 
-    def run_bayesian_logistic_regression(self):
+    def cv_bayesian_logistic_regression(self):
         acc_scores, recall_scores, f1_scores = [], [], []
         n_features = self.X.shape[1]
 
@@ -50,7 +51,7 @@ class BinaryClassifier:
 
             with pm.Model() as weighted_logistic_model:
                 alpha = pm.Normal("alpha", mu=0, sigma=1)
-                beta = pm.Laplace("beta", mu=0, b=0.1, shape=n_features)
+                beta = pm.Laplace("beta", mu=0, b=self.args.binary_b, shape=n_features)
                 logit_p = alpha + pm.math.dot(X_train, beta)
                 log_likelihood = pm.logp(pm.Bernoulli.dist(logit_p=logit_p), y_train)
                 weighted_log_likelihood = log_likelihood * weights_train
@@ -82,7 +83,7 @@ class BinaryClassifier:
         
         with pm.Model() as self.final_bayesian_model:
             alpha = pm.Normal("alpha", mu=0, sigma=1)
-            beta = pm.Laplace("beta", mu=0, b=0.1, shape=n_features)
+            beta = pm.Laplace("beta", mu=0, b=self.args.binary_b, shape=n_features)
             logit_p = alpha + pm.math.dot(self.X, beta)
             log_likelihood = pm.logp(pm.Bernoulli.dist(logit_p=logit_p), self.y_binary)
             weighted_log_likelihood = log_likelihood * self.weights

@@ -8,7 +8,8 @@ import pymc as pm
 
 
 class MultiClassifier:
-    def __init__(self, X, y, n_splits=5, random_state=42):
+    def __init__(self,args, X, y, n_splits=5, random_state=42):
+        self.args = args
         self.X = X
         self.y_original = y
         self.n_splits = n_splits
@@ -55,7 +56,7 @@ class MultiClassifier:
                 # Often one class is fixed as reference (e.g. all zeros), but here we'll estimate all and rely on softmax normalization.
                 
                 alpha = pm.Normal("alpha", mu=0, sigma=1, shape=n_classes)
-                beta = pm.Laplace("beta", mu=0, b=1, shape=(n_features, n_classes))
+                beta = pm.Laplace("beta", mu=0, b=self.args.multi_b, shape=(n_features, n_classes))
                 
                 # Linear model
                 # X_train: (n_samples, n_features)
@@ -123,7 +124,7 @@ class MultiClassifier:
         
         with pm.Model() as self.final_bayesian_model:
             alpha = pm.Normal("alpha", mu=0, sigma=1, shape=n_classes)
-            beta = pm.Laplace("beta", mu=0, b=1, shape=(n_features, n_classes))
+            beta = pm.Laplace("beta", mu=0, b=self.args.multi_b, shape=(n_features, n_classes))
             
             mu = alpha + pm.math.dot(self.X, beta)
             p = pm.math.softmax(mu, axis=1)
