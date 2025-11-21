@@ -39,7 +39,7 @@ class MultiClassifier:
 
         return {'accuracy': np.mean(acc_scores), 'f1_score': np.mean(f1_scores)}
 
-    def run_bayesian_logistic_regression(self):
+    def run_bayesian_logistic_regression(self, draws=500, tune=500):
         acc_scores, f1_scores = [], []
         n_features = self.X.shape[1]
         n_classes = self.n_classes
@@ -71,7 +71,7 @@ class MultiClassifier:
                 y_obs = pm.Categorical("y_obs", p=p, observed=y_train)
                 
                 # Inference
-                trace = pm.sample(500, tune=500, cores=1, progressbar=False, return_inferencedata=False)
+                trace = pm.sample(draws, tune=tune, cores=1, progressbar=False, return_inferencedata=False)
 
             # Posterior prediction
             alpha_samples = trace['alpha'] # (n_samples, n_classes)

@@ -23,7 +23,7 @@ def verify():
 
     # Run Bayesian Logistic Regression
     print("\nRunning Bayesian Logistic Regression...")
-    bayesian_results = multi_classifier.run_bayesian_logistic_regression()
+    bayesian_results = multi_classifier.run_bayesian_logistic_regression(draws=50, tune=50)
     print("Bayesian Logistic Regression Results:", bayesian_results)
 
     print("\n--- Verification Complete ---")
