@@ -5,7 +5,7 @@ from sklearn.model_selection import KFold
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.preprocessing import LabelEncoder
 import pymc as pm
-import aesara.tensor as at
+
 
 class MultiClassifier:
     def __init__(self, X, y, n_splits=5, random_state=42):
@@ -22,7 +22,7 @@ class MultiClassifier:
         y_encoded = encoder.fit_transform(y_str)
         return y_encoded, encoder.classes_
 
-    def run_logistic_regression(self):
+    def cv_logistic_regression(self):
         acc_scores, f1_scores = [], []
 
         for train_index, val_index in self.kf.split(self.X):
@@ -39,7 +39,7 @@ class MultiClassifier:
 
         return {'accuracy': np.mean(acc_scores), 'f1_score': np.mean(f1_scores)}
 
-    def run_bayesian_logistic_regression(self, draws=500, tune=500):
+    def cv_bayesian_logistic_regression(self, draws=500, tune=500):
         acc_scores, f1_scores = [], []
         n_features = self.X.shape[1]
         n_classes = self.n_classes
