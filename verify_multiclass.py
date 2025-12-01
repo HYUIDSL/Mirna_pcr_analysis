@@ -1,9 +1,19 @@
 import pandas as pd
 from src.preprocess import Preprocessor
 from src.multiclass_classifier import MultiClassifier
-
+import argparse
 def verify():
     print("--- Starting Verification ---")
+
+    parser = argparse.ArgumentParser(description='Run Classification Model')
+    parser.add_argument('--mode', type=str, choices=['binary', 'multi'], default='binary',
+                        help='Choose classification mode: "binary" or "multi"')
+    parser.add_argument('--binary_b', type=float, default=0.5,
+                        help='Hyperparameter b for binary Bayesian logistic regression')
+    parser.add_argument('--multi_b', type=float, default=0.1,
+                        help='Hyperparameter b for multiclass Bayesian logistic regression')
+    args = parser.parse_args()
+
     # Load data
     preprocessor = Preprocessor('mirna_v3.xlsx')
     X_combined, y_original = preprocessor.preprocess()
@@ -14,17 +24,17 @@ def verify():
     print(f"y shape: {y_original.shape}")
 
     # Initialize MultiClassifier
-    multi_classifier = MultiClassifier(X_scaled, y_original, n_splits=2) # Reduced splits for quick verification
+    multi_classifier = MultiClassifier(args, X_scaled, y_original, n_splits=2) # Reduced splits for quick verification
     
     # Run Standard Logistic Regression
-    print("\nRunning Standard Logistic Regression...")
-    logistic_results = multi_classifier.run_logistic_regression()
-    print("Standard Logistic Regression Results:", logistic_results)
+    # print("\nRunning Standard Logistic Regression...")
+    # logistic_results = multi_classifier.run_logistic_regression()
+    # print("Standard Logistic Regression Results:", logistic_results)
 
-    # Run Bayesian Logistic Regression
-    print("\nRunning Bayesian Logistic Regression...")
-    bayesian_results = multi_classifier.run_bayesian_logistic_regression(draws=50, tune=50)
-    print("Bayesian Logistic Regression Results:", bayesian_results)
+    # # Run Bayesian Logistic Regression
+    # print("\nRunning Bayesian Logistic Regression...")
+    # bayesian_results = multi_classifier.run_bayesian_logistic_regression(draws=50, tune=50)
+    # print("Bayesian Logistic Regression Results:", bayesian_results)
 
     # Verify Prediction Logic
     print("\n--- Verifying Prediction Logic ---")

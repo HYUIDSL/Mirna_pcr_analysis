@@ -1,10 +1,21 @@
 import pandas as pd
 from src.preprocess import Preprocessor
 from src.binary_classifier import BinaryClassifier
+import argparse
 
 def verify():
     print("--- Starting Binary Verification ---")
     # Load data
+
+    parser = argparse.ArgumentParser(description='Run Classification Model')
+    parser.add_argument('--mode', type=str, choices=['binary', 'multi'], default='binary',
+                        help='Choose classification mode: "binary" or "multi"')
+    parser.add_argument('--binary_b', type=float, default=0.5,
+                        help='Hyperparameter b for binary Bayesian logistic regression')
+    parser.add_argument('--multi_b', type=float, default=0.1,
+                        help='Hyperparameter b for multiclass Bayesian logistic regression')
+    args = parser.parse_args()
+
     preprocessor = Preprocessor('mirna_v3.xlsx')
     X_combined, y_original = preprocessor.preprocess()
     X_scaled = preprocessor.get_scaled_data()
@@ -14,7 +25,7 @@ def verify():
     print(f"y shape: {y_original.shape}")
 
     # Initialize BinaryClassifier
-    binary_classifier = BinaryClassifier(X_scaled, y_original, n_splits=2)
+    binary_classifier = BinaryClassifier(args, X_scaled, y_original, n_splits=2)
     
     # Verify Prediction Logic
     print("\n--- Verifying Prediction Logic ---")
