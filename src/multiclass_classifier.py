@@ -2,9 +2,11 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import KFold
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, roc_curve, auc
 from sklearn.preprocessing import LabelEncoder
 import pymc as pm
+import matplotlib.pyplot as plt
+import os
 
 
 class MultiClassifier:
@@ -22,9 +24,43 @@ class MultiClassifier:
         encoder = LabelEncoder()
         y_encoded = encoder.fit_transform(y_str)
         return y_encoded, encoder.classes_
+    
+    def _plot_multiclass_roc_curves(self, y_true, y_pred_proba, model_name, class_labels, plot_dir="plots"):
+        os.makedirs(plot_dir, exist_ok=True)
+        
+        all_fpr = []
+        all_tpr = []
+        all_auc_scores = []
+
+        plt.figure(figsize=(10, 8))
+        for i, class_label in enumerate(class_labels):
+            y_true_binary = (y_true == i).astype(int)
+            y_pred_proba_class = y_pred_proba[:, i]
+            
+            fpr, tpr, _ = roc_curve(y_true_binary, y_pred_proba_class)
+            roc_auc = auc(fpr, tpr)
+            
+            plt.plot(fpr, tpr, lw=2, label=f'ROC curve (Class {class_label}, area = {roc_auc:.2f})')
+            all_auc_scores.append(roc_auc)
+
+        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title(f'Receiver Operating Characteristic - {model_name} (Multiclass Classification)')
+        plt.legend(loc="lower right")
+        
+        plot_path = os.path.join(plot_dir, f'auc_curve_{model_name}_multiclass.png')
+        plt.savefig(plot_path)
+        plt.close()
+        print(f"Saved multiclass AUC curves for {model_name} to {plot_path}")
+        
+        return np.mean(all_auc_scores)
 
     def cv_logistic_regression(self):
         acc_scores, f1_scores = [], []
+        y_true_all, y_pred_proba_all = np.array([]), np.empty((0, self.n_classes))
 
         for train_index, val_index in self.kf.split(self.X):
             X_train, X_val = self.X[train_index], self.X[val_index]
@@ -34,16 +70,22 @@ class MultiClassifier:
             model = LogisticRegression(multi_class='multinomial', solver='lbfgs', max_iter=1000)
             model.fit(X_train, y_train)
             y_pred = model.predict(X_val)
+            y_pred_proba = model.predict_proba(X_val)
 
             acc_scores.append(accuracy_score(y_val, y_pred))
             f1_scores.append(f1_score(y_val, y_pred, average='weighted'))
 
-        return {'accuracy': np.mean(acc_scores), 'f1_score': np.mean(f1_scores)}
+            y_true_all = np.append(y_true_all, y_val) 
+            y_pred_proba_all = np.vstack((y_pred_proba_all, y_pred_proba)) 
+
+        macro_auc_score = self._plot_multiclass_roc_curves(y_true_all, y_pred_proba_all, "Logistic_Regression", self.class_labels) 
+        return {'accuracy': np.mean(acc_scores), 'f1_score': np.mean(f1_scores), 'auc_score': macro_auc_score}
 
     def cv_bayesian_logistic_regression(self, draws=500, tune=500):
         acc_scores, f1_scores = [], []
         n_features = self.X.shape[1]
         n_classes = self.n_classes
+        y_true_all, y_pred_proba_all = np.array([]), np.empty((0, self.n_classes))
 
         for train_index, val_index in self.kf.split(self.X):
             X_train, X_val = self.X[train_index], self.X[val_index]
@@ -107,8 +149,12 @@ class MultiClassifier:
 
             acc_scores.append(accuracy_score(y_val, y_pred_bayesian))
             f1_scores.append(f1_score(y_val, y_pred_bayesian, average='weighted'))
+            
+            y_true_all = np.append(y_true_all, y_val) 
+            y_pred_proba_all = np.vstack((y_pred_proba_all, avg_probs)) 
 
-        return {'accuracy': np.mean(acc_scores), 'f1_score': np.mean(f1_scores)}
+        macro_auc_score = self._plot_multiclass_roc_curves(y_true_all, y_pred_proba_all, "Bayesian_Logistic_Regression", self.class_labels) 
+        return {'accuracy': np.mean(acc_scores), 'f1_score': np.mean(f1_scores), 'auc_score': macro_auc_score}
 
     def fit_final_models(self, draws=500, tune=500):
         """

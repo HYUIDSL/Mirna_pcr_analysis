@@ -1,1 +1,17 @@
-*.pyc
+# IDEs and editors
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.env
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+plots/
