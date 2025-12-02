@@ -4,7 +4,8 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 
 class Preprocessor:
-    def __init__(self, file_path):
+    def __init__(self,args, file_path):
+        self.args = args
         self.file_path = file_path
         self.df = None
         self.X_combined = None
@@ -12,7 +13,8 @@ class Preprocessor:
 
     def load_data(self):
         try:
-            self.df = pd.read_excel(self.file_path, sheet_name=1)
+            self.df = pd.read_excel(self.file_path, sheet_name=0)
+
             return self.df
         except Exception as e:
             print(f"Error reading {self.file_path}: {e}")
@@ -22,8 +24,8 @@ class Preprocessor:
 
         self.df= self.load_data()
 
-        X_raw = self.df.iloc[:, 3:21]
-        self.y_original = self.df.iloc[:, 0].copy()
+        X_raw = self.df.iloc[:, 19:37]
+        self.y_original = self.df.iloc[:, 8].copy()
 
         filtered_columns = [col for col in X_raw.columns if not col.startswith('dCt')]
         mir_columns = [col for col in filtered_columns if 'miR' in col]
@@ -71,8 +73,17 @@ class Preprocessor:
         indicator_new_cols = [f"{col}_is_geq_40" for col in X_indicator_final.columns]
         X_indicator_final.columns = indicator_new_cols
         self.X_combined = pd.concat([X_diff_final, X_indicator_final], axis=1)
+
+        if self.args.indicator:
+            indicator_data = (X_testing_numeric.values >= 40).astype(int)
+            X_indicator_final = pd.DataFrame(indicator_data, index=X_diff_final.index, columns=new_column_names)
+            indicator_new_cols = [f"{col}_is_geq_40" for col in X_indicator_final.columns]
+            X_indicator_final.columns = indicator_new_cols
+            self.X_combined = pd.concat([X_diff_final, X_indicator_final], axis=1)
+        else:
+            self.X_combined = X_diff_final
         
-        return self.X_combined, self.y_original
+        return self.X_combined, self.y_original, self.X_combined.columns
 
     def get_scaled_data(self):
         if self.X_combined is None:

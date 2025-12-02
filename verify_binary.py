@@ -14,10 +14,13 @@ def verify():
                         help='Hyperparameter b for binary Bayesian logistic regression')
     parser.add_argument('--multi_b', type=float, default=0.1,
                         help='Hyperparameter b for multiclass Bayesian logistic regression')
+    
+    parser.add_argument('--indicator', type=bool, default=True,
+                    help='Include indicator variables (>=40) in preprocessing')
     args = parser.parse_args()
 
-    preprocessor = Preprocessor('mirna_v3.xlsx')
-    X_combined, y_original = preprocessor.preprocess()
+    preprocessor = Preprocessor(args,'mirna_v4.xlsx')
+    X_combined, y_original, feature_names = preprocessor.preprocess()
     X_scaled = preprocessor.get_scaled_data()
     
     print("Data loaded and preprocessed.")
@@ -25,7 +28,7 @@ def verify():
     print(f"y shape: {y_original.shape}")
 
     # Initialize BinaryClassifier
-    binary_classifier = BinaryClassifier(args, X_scaled, y_original, n_splits=2)
+    binary_classifier = BinaryClassifier(args, X_scaled, y_original, feature_names, n_splits=2)
     
     # Verify Prediction Logic
     print("\n--- Verifying Prediction Logic ---")
@@ -40,6 +43,11 @@ def verify():
     print("Prediction Results:")
     print("Logistic Probability (Positive Class):", prediction_results['logistic_proba'])
     print("Bayesian Probability (Positive Class):", prediction_results['bayesian_proba'])
+
+    # Calculate and display p-values
+    p_values_df = binary_classifier.calculate_p_values()
+    print("\nP-Values for Features:")
+    print(p_values_df)
 
     print("\n--- Verification Complete ---")
 
