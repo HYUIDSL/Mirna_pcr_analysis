@@ -91,3 +91,20 @@ class Preprocessor:
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(self.X_combined)
         return X_scaled
+
+    def prepare_regression_target(self):
+        if self.y_original is None:
+            self.preprocess()
+        
+        y_str = self.y_original.apply(lambda val: 'Normal' if str(val).startswith('C') else ('Alzheimer' if str(val).startswith('AD') else 'MCI'))
+        
+        y_regression = pd.Series(index=y_str.index, dtype=float)
+        
+        y_regression[y_str == 'Normal'] = 0.0
+        y_regression[y_str == 'Alzheimer'] = 1.0
+        
+        mci_indices = y_str[y_str == 'MCI'].index
+        num_mci = len(mci_indices)
+        y_regression.loc[mci_indices] = 0.35
+        
+        return y_regression

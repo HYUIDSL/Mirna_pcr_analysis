@@ -1,12 +1,13 @@
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, recall_score, f1_score, roc_curve, auc
 from sklearn.model_selection import KFold
 import pymc as pm
-import arviz as az  # HDI 계산을 위한 핵심 라이브러리
-from scipy import stats
+import arviz as az
 import pandas as pd
 import statsmodels.api as sm
+import matplotlib.pyplot as plt
+import os
 
 class BinaryClassifier:
     def __init__(self,args, X, y, feature_names, n_splits=10, random_state=42):
@@ -26,8 +27,31 @@ class BinaryClassifier:
         weights[y_str[y_str == 'MCI'].index] = mci_weight
         return y_binary, weights
 
+    def _plot_roc_curve(self, y_true, y_pred_proba, model_name, plot_dir="plots"):
+        os.makedirs(plot_dir, exist_ok=True)
+        
+        fpr, tpr, _ = roc_curve(y_true, y_pred_proba)
+        roc_auc = auc(fpr, tpr)
+
+        plt.figure()
+        plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {roc_auc:.2f})')
+        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title(f'Receiver Operating Characteristic - {model_name} (Binary Classification)')
+        plt.legend(loc="lower right")
+        
+        plot_path = os.path.join(plot_dir, f'auc_curve_{model_name}_binary.png')
+        plt.savefig(plot_path)
+        plt.close()
+        print(f"Saved AUC curve for {model_name} to {plot_path}")
+        return roc_auc
+
     def cv_logistic_regression(self):
         acc_scores, recall_scores, f1_scores = [], [], []
+        y_true_all, y_pred_proba_all = np.array([]), np.array([]) 
 
         for train_index, val_index in self.kf.split(self.X):
             X_train, X_val = self.X[train_index], self.X[val_index]
@@ -37,16 +61,22 @@ class BinaryClassifier:
             model = LogisticRegression(max_iter=1000)
             model.fit(X_train, y_train, sample_weight=weights_train)
             y_pred = model.predict(X_val)
+            y_pred_proba = model.predict_proba(X_val)[:, 1] 
 
             acc_scores.append(accuracy_score(y_val, y_pred, sample_weight=weights_val))
             recall_scores.append(recall_score(y_val, y_pred, sample_weight=weights_val, zero_division=0))
             f1_scores.append(f1_score(y_val, y_pred, sample_weight=weights_val, zero_division=0))
 
-        return {'accuracy': np.mean(acc_scores), 'recall': np.mean(recall_scores), 'f1_score': np.mean(f1_scores)}
+            y_true_all = np.append(y_true_all, y_val) 
+            y_pred_proba_all = np.append(y_pred_proba_all, y_pred_proba) 
+
+        roc_auc_score = self._plot_roc_curve(y_true_all, y_pred_proba_all, "Logistic_Regression") 
+        return {'accuracy': np.mean(acc_scores), 'recall': np.mean(recall_scores), 'f1_score': np.mean(f1_scores), 'auc_score': roc_auc_score}
 
     def cv_bayesian_logistic_regression(self):
         acc_scores, recall_scores, f1_scores = [], [], []
         n_features = self.X.shape[1]
+        y_true_all, y_pred_proba_all = np.array([]), np.array([]) 
 
         for train_index, val_index in self.kf.split(self.X):
             X_train, X_val = self.X[train_index], self.X[val_index]
@@ -71,8 +101,12 @@ class BinaryClassifier:
             acc_scores.append(accuracy_score(y_val, y_pred_bayesian, sample_weight=weights_val))
             recall_scores.append(recall_score(y_val, y_pred_bayesian, sample_weight=weights_val, zero_division=0))
             f1_scores.append(f1_score(y_val, y_pred_bayesian, sample_weight=weights_val, zero_division=0))
+            
+            y_true_all = np.append(y_true_all, y_val) 
+            y_pred_proba_all = np.append(y_pred_proba_all, y_prob_bayesian) 
 
-        return {'accuracy': np.mean(acc_scores), 'recall': np.mean(recall_scores), 'f1_score': np.mean(f1_scores)}
+        roc_auc_score = self._plot_roc_curve(y_true_all, y_pred_proba_all, "Bayesian_Logistic_Regression") 
+        return {'accuracy': np.mean(acc_scores), 'recall': np.mean(recall_scores), 'f1_score': np.mean(f1_scores), 'auc_score': roc_auc_score}
 
     def fit_final_models(self, draws=500, tune=500):
         """
